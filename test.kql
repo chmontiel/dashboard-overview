@@ -1,0 +1,39 @@
+```kusto
+alertsmanagementresources
+| where type == "microsoft.alertsmanagement/alerts"
+| where properties.essentials.monitorCondition == "Fired"
+| where properties.essentials.severity in ("Sev1", "Sev2", "Sev3", "Sev4")
+| extend
+    Severity        = tostring(properties.essentials.severity),
+    AlertName       = tostring(properties.essentials.alertRule),
+    AffectedVM      = tostring(properties.essentials.targetResourceName),
+    ResourceGroup   = tostring(properties.essentials.targetResourceGroup),
+    SignalType      = tostring(properties.essentials.signalType),
+    MonitorService  = tostring(properties.essentials.monitorService),
+    Description     = tostring(properties.essentials.description),
+    FiredAt         = todatetime(properties.essentials.startDateTime)
+| extend
+    SeverityLabel = case(
+        Severity == "Sev0", "🔴 Critical",
+        Severity == "Sev1", "🟠 Error",
+        Severity == "Sev2", "🟡 Warning",
+        Severity == "Sev3", "🔵 Info",
+        Severity == "Sev4", "⚪ Verbose",
+        Severity
+    ),
+    WhyFired = iff(
+        isnotempty(Description) and Description != "null",
+        Description,
+        strcat(SignalType, " signal fired via ", MonitorService)
+    ),
+    AgeMinutes = datetime_diff('minute', now(), FiredAt)
+| project
+    SeverityLabel,
+    AlertName,
+    AffectedVM,
+    WhyFired,
+    AgeMinutes,
+    FiredAt,
+    ResourceGroup
+| order by FiredAt desc
+```
