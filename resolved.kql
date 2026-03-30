@@ -1,0 +1,39 @@
+AlertsManagementResources
+| where subscriptionId in~ (${sub:singlequote})
+| where properties.essentials.monitorCondition =~ "Resolved"
+| where todatetime(properties.essentials.lastModifiedDateTime) >= ago(24h)
+| extend Severity = tostring(properties.essentials.severity)
+| extend SeverityLabel = case(
+    Severity == "Sev0", "Critical",
+    Severity == "Sev1", "Error",
+    Severity == "Sev2", "Warning",
+    Severity == "Sev3", "Info",
+    Severity == "Sev4", "Verbose",
+    Severity
+)
+| extend StartTime = todatetime(properties.essentials.startDateTime)
+| extend ResolvedTime = todatetime(properties.essentials.lastModifiedDateTime)
+| extend DurationMin = datetime_diff('minute', ResolvedTime, StartTime)
+| extend Duration = case(
+    DurationMin < 60, strcat(tostring(DurationMin), 'm'),
+    DurationMin < 1440, strcat(tostring(DurationMin / 60), 'h ', tostring(DurationMin % 60), 'm'),
+    strcat(tostring(DurationMin / 1440), 'd ', tostring((DurationMin % 1440) / 60), 'h')
+)
+| extend TargetResourceType = tostring(properties.essentials.targetResourceType)
+| extend Category = case(
+    tolower(TargetResourceType) contains "virtualmachines", "Virtual Machine",
+    tolower(tostring(properties.essentials.monitorService)) contains "servicehealth", "Service Health",
+    tolower(TargetResourceType) contains "subscriptions", "Subscription",
+    "Other"
+)
+| project
+    SeverityLabel,
+    Severity,
+    Category,
+    Resource = tostring(properties.essentials.targetResourceName),
+    Reason = tostring(properties.essentials.description),
+    ResourceGroup = tostring(properties.essentials.targetResourceGroup),
+    Duration,
+    StartTime,
+    ResolvedTime
+| order by ResolvedTime desc
