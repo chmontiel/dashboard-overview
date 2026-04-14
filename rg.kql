@@ -1,0 +1,11 @@
+resourcecontainers
+| where type == "microsoft.resources/subscriptions/resourcegroups"
+| where subscriptionId == "$subscription"
+| where case(
+    "$category" == "All", true,
+    "$category" == "Prod", name matches regex ".*-prod$",
+    "$category" == "Client Facing", name matches regex ".*-(dev|uat|qa)$",
+    "$category" == "Nonclient Facing", name !matches regex ".*-(dev|uat|qa|prod)$",
+    true
+)
+| project name
